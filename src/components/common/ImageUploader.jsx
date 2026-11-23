@@ -1,32 +1,87 @@
 
 "use client";
-import { useRef } from "react";
-import { ImagePlus, X } from "lucide-react";
+
+import { useEffect, useRef, useState } from "react";
+import { ImagePlus, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+import { uploadImage } from "@/lib/upload";
 
 export default function ImageUploader({
   value = [],
   onChange,
   max = 4,
   disabled = false,
+  deferUpload = false,
 }) {
   const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [previews, setPreviews] = useState([]);
 
-  const handleFiles = (fileList) => {
-    const files = Array.from(fileList).slice(0, max - value.length);
+  useEffect(() => {
+    const urls = value.map((item) =>
+      typeof item === "string" ? item : URL.createObjectURL(item)
+    );
 
-    const validFiles = files.filter((file) => {
+    setPreviews(urls);
+
+    return () => {
+      urls.forEach((url, index) => {
+        if (typeof value[index] !== "string") {
+          URL.revokeObjectURL(url);
+        }
+      });
+    };
+  }, [value]);
+
+  const handleFiles = async (fileList) => {
+    const files = Array.from(fileList).slice(
+      0,
+      max - value.length
+    );
+
+    if (!files.length) return;
+
+    const validFiles = [];
+
+    for (const file of files) {
       if (!file.type.startsWith("image/")) {
-        return false;
+        toast.error("Please choose an image file");
+        continue;
       }
 
       if (file.size > 5 * 1024 * 1024) {
-        return false;
+        toast.error("Image must be smaller than 5 MB");
+        continue;
       }
 
-      return true;
-    });
+      validFiles.push(file);
+    }
 
-    onChange([...value, ...validFiles]);
+    if (!validFiles.length) return;
+
+    if (deferUpload) {
+      onChange([...value, ...validFiles]);
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
+    setUploading(true);
+
+    const urls = [];
+
+    for (const file of validFiles) {
+      try {
+        urls.push(await uploadImage(file));
+      } catch (err) {
+        toast.error(err.message || "Image upload failed");
+      }
+    }
+
+    if (urls.length) {
+      onChange([...value, ...urls]);
+    }
+
+    setUploading(false);
 
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -35,14 +90,14 @@ export default function ImageUploader({
 
   return (
     <div className="flex flex-wrap gap-3">
-      {value.map((file, index) => (
+      {value.map((item, index) => (
         <div
-          key={`${file.name}-${index}`}
+          key={`${typeof item === "string" ? item : item.name}-${index}`}
           className="relative size-24 overflow-hidden rounded-lg border"
         >
           <img
-            src={URL.createObjectURL(file)}
-            alt="Selected"
+            src={previews[index] || ""}
+            alt="Uploaded"
             className="size-full object-cover"
           />
 
@@ -53,7 +108,7 @@ export default function ImageUploader({
             }
             className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white"
             aria-label="Remove image"
-            disabled={disabled}
+            disabled={disabled || uploading}
           >
             <X className="size-3" />
           </button>
@@ -64,11 +119,16 @@ export default function ImageUploader({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          disabled={disabled}
+          disabled={uploading || disabled}
           className="flex size-24 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-xs text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-60"
         >
-          <ImagePlus className="size-5" />
-          Add image
+          {uploading ? (
+            <Loader2 className="size-5 animate-spin" />
+          ) : (
+            <ImagePlus className="size-5" />
+          )}
+
+          {uploading ? "Uploading" : "Add image"}
         </button>
       )}
 
