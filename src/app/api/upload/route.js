@@ -7,9 +7,6 @@ export async function POST(req) {
     if (!session?.user) {
       return Response.json({ message: "Authentication required" }, { status: 401 });
     }
-    if (!["vendor", "admin"].includes(session.user.role)) {
-      return Response.json({ message: "Forbidden" }, { status: 403 });
-    }
     const form = await req.formData();
     const file = form.get("file");
     if (!file || typeof file === "string") {
