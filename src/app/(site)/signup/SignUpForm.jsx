@@ -206,6 +206,7 @@ export default function SignUpForm() {
                 onChange={setImage}
                 max={1}
                 disabled={loading}
+                deferUpload={true}
               />
             </div>
 
